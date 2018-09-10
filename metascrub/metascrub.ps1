@@ -76,17 +76,7 @@ Function Get-FileContents {
      $latRef = Get-ExifContents -image $image -exifCode "1"
      $longRef = Get-ExifContents -image $image -exifCode "3"
      $altitude = Get-Coordinates -image $image -exifCode "6"
-     # Writes the results to the screen for veiwing
-     Write-Host Picture: $file
-     Write-Results -label "Camera Maker" -value $maker
-     Write-Results -label "Camera Model" -value $model
-     Write-Results -label "Software Version" -value $version
-     Write-Results -label "Time Taken" -value $dateTime
-     Write-Results -label "Latitude" -value $lat
-     Write-Results -label "Latitude Reference" -value $latRef
-     Write-Results -label "Longitude" -value $long
-     Write-Results -label "Longitude Reference" -value $longRef
-     Write-Results -label "Altitude" -value $altitude
+     # Puts all the EXIF data in a PSObject to return
      $exifData = [pscustomobject][ordered]@{
           File = $file
           CameraMaker = $maker
@@ -96,6 +86,12 @@ Function Get-FileContents {
           Latitude = [string]$lat + $latRef
           Longitude = [string]$long + $longRef
           Altitude = $altitude
+     }
+     if ($exifData.Latitude -eq "<empty><empty>"){
+          $exifData.Latitude = "<empty>"
+     }
+     if ($exifData.Longitude -eq "<empty><empty>"){
+          $exifData.Longitude = "<empty>"
      }
      return $exifData
 
@@ -133,6 +129,20 @@ else {
 
 if ($exportcsv){
      $exportArray | Export-Csv -NoTypeInformation -Append $exportcsv
+}
+
+if ($exportcsv -eq $false){
+     # Writes the results to the screen for veiwing
+     foreach($obj in $exportArray){
+          Write-Host Picture: $obj.file
+          Write-Results -label "Camera Maker" -value $obj.cameramaker
+          Write-Results -label "Camera Model" -value $obj.cameramodel
+          Write-Results -label "Software Version" -value $obj.softwareversion
+          Write-Results -label "Time Taken" -value $obj.datetaken
+          Write-Results -label "Latitude" -value $obj.latitude
+          Write-Results -label "Longitude" -value $obj.longitude
+          Write-Results -label "Altitude" -value $obj.altitude
+     }
 }
 
 
