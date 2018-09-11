@@ -5,11 +5,21 @@
 
 param(
      [string]$file = $false,
-     [string]$exportcsv = $false
+     [string]$exportcsv = $false,
+     [Parameter(Position = 0, ValueFromRemainingArguments = $true)]$args
 )
 
 # Loads the System.Drawing DLL for usage
 Add-Type -Assembly System.Drawing
+# Write-Host "Args: $args"
+
+$clean = $false
+$argsList = $args -split(' ')
+foreach($arg in $argsList){
+     if ( ($arg -like "clean") -or ($arg -like "-clean")){
+          $clean = $true
+     }
+}
 
 Function Get-Coordinates{
      param($image, $exifCode)
@@ -59,14 +69,56 @@ Function Write-Results{
      }
 }
 
+Function Set-FileContents {
+     param(
+          [string]$file
+     )
+     $exifCodes = (1, 2, 3, 4, 6, 271, 272, 305, 306)
+     Try {
+          $fullPath = (Get-ChildItem $file).fullname
+          $fs = [System.IO.File]::OpenRead($fullPath)
+          $image = [System.Drawing.Image]::FromStream($fs, $false, $false)
+     }
+     Catch {
+          Write-Output "Error Opening File: $file"
+          return
+     }
+     foreach($exifCode in $exifCodes){
+          Try {
+               $image.RemovePropertyItem($exifCode)
+          }
+          Catch {
+               continue
+          }
+     }
+     $memoryStream = New-Object System.IO.MemoryStream
+     $image.Save($memoryStream, $image.RawFormat)
+     $image.Dispose()
+     $fs.Close()
+     $writer = New-Object System.IO.FileStream($fullPath, [System.IO.FileMode]::Create)
+     $memoryStream.WriteTo($writer)
+     $writer.Flush()
+     $writer.Close()
+
+}
+
 Function Get-FileContents {
      param($file)
      # Creates the full path for the file
-     $fullPath = (Resolve-Path $file).path
-     # Creates a file handle to the image
-     $fs = [System.IO.File]::OpenRead($fullPath)
-     # Reads the image to allow parsing for EXIF data
-     $image = [System.Drawing.Image]::FromStream($fs, $false, $false)
+     Try {
+          $fullPath = (Resolve-Path $file).path
+          # Creates a file handle to the image
+          $fs = [System.IO.File]::OpenRead($fullPath)
+          # Reads the image to allow parsing for EXIF data
+          $image = [System.Drawing.Image]::FromStream($fs, $false, $false)
+     }
+     Catch {
+          if (($fs) -or ($image)){
+               $image.dispose()
+               $fs.close()
+          }
+          Write-Error "Error Opening $file"
+     }
      $maker = Get-ExifContents -image $image -exifCode "271"
      $model = Get-ExifContents -image $image -exifCode "272"
      $version = Get-ExifContents -image $image -exifCode "305"
@@ -93,6 +145,9 @@ Function Get-FileContents {
      if ($exifData.Longitude -eq "<empty><empty>"){
           $exifData.Longitude = "<empty>"
      }
+     # releases the file handles
+     $image.dispose()
+     $fs.Close()
      return $exifData
 
 }
@@ -105,6 +160,7 @@ if (!$file){
 $exportArray = [System.Collections.ArrayList]@()
 $isDir = (Get-Item $file) -is [System.IO.DirectoryInfo]
 # Write-Output "isDir: $isDir"
+
 if ($isDir){
      $fileList = (Get-ChildItem $file).fullname
      foreach($childFile in $fileList){
@@ -115,6 +171,11 @@ if ($isDir){
           }
           $obj = Get-FileContents($childFile)
           $exportArray.add($obj) | Out-Null
+          if ($clean){
+               Set-FileContents($childFile)
+               $obj = Get-FileContents($childFile)
+               $exportArray.add($obj) | Out-Null
+          }
      }
 }
 else {
@@ -125,6 +186,11 @@ else {
      }
      $obj = Get-FileContents($file)
      $exportArray.add($obj) | Out-Null
+     if ($clean){
+          Set-FileContents($file)
+          $obj = Get-FileContents($file)
+          $exportArray.add($obj) | Out-Null
+     }
 }
 
 if ($exportcsv){
@@ -144,5 +210,7 @@ if ($exportcsv -eq $false){
           Write-Results -label "Altitude" -value $obj.altitude
      }
 }
+
+
 
 
