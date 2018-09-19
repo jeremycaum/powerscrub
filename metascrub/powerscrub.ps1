@@ -118,6 +118,7 @@ Function Get-FileContents {
                $fs.close()
           }
           Write-Error "Error Opening $file"
+          return
      }
      $maker = Get-ExifContents -image $image -exifCode "271"
      $model = Get-ExifContents -image $image -exifCode "272"
@@ -149,7 +150,6 @@ Function Get-FileContents {
      $image.dispose()
      $fs.Close()
      return $exifData
-
 }
 
 # Prompts the user for the file path if it was not given upon invocation
@@ -166,7 +166,7 @@ if ($isDir){
      foreach($childFile in $fileList){
           $ext = (Get-ChildItem $childFile).extension
           if($ext -ne ".jpg"){
-               # Write-Output "$childFile is not a jpg, skipping"
+               Write-Output "$childFile is not a jpg, skipping"
                continue
           }
           $obj = Get-FileContents($childFile)
@@ -178,6 +178,7 @@ if ($isDir){
           }
      }
 }
+
 else {
      $ext = (Get-ChildItem $file).extension
      if($ext -notlike ".jpg"){
@@ -210,7 +211,3 @@ if ($exportcsv -eq $false){
           Write-Results -label "Altitude" -value $obj.altitude
      }
 }
-
-
-
-
